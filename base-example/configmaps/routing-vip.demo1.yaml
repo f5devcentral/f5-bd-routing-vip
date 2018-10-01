@@ -1,0 +1,40 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: routing-vip 
+  namespace: demo1
+  labels:
+    f5type: virtual-server
+data:
+  # schema v.0.1.4 is required as of k8s-bigip-ctlr v1.3.0
+  schema: "f5schemadb://bigip-virtual-server_v0.1.4.json"
+  data: |
+    {
+      "virtualServer": {
+        "backend": {
+          "serviceName": "default-backend",
+          "servicePort": 8080
+        },
+        "frontend": {
+          "partition": "demo1",
+          "iapp": "/Common/f5bd.routing-vip",
+          "iappPoolMemberTable": {
+            "name": "pool__members",
+            "columns": [
+                {"name": "addr", "kind": "IPAddress"},
+                {"name": "port", "kind": "Port"},
+                {"name": "connection_limit", "value": "0"}
+            ]
+          },
+          "iappOptions": {
+            "description": "f5bd.routing-vip iApp"
+          },
+          "iappVariables": {
+            "var__prefix": "demo1",
+            "var__custom_clientssl_profile": "/Common/custom-client-ssl",
+            "var__vs_address": "209.194.169.145"
+          }
+        }
+      }
+    }
+

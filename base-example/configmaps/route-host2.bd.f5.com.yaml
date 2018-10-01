@@ -1,0 +1,54 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: host2.bd.f5.com
+  namespace: demo
+  labels:
+    f5type: virtual-server
+data:
+  # schema v.0.1.4 is required as of k8s-bigip-ctlr v1.3.0
+  schema: "f5schemadb://bigip-virtual-server_v0.1.4.json"
+  data: |
+    {
+      "virtualServer": {
+        "backend": {
+          "serviceName": "default-backend",
+          "servicePort": 8080
+        },
+        "frontend": {
+          "partition": "demo",
+          "iapp": "/Common/f5bd.route",
+          "iappPoolMemberTable": {
+            "name": "pool__members",
+            "columns": [
+                {"name": "addr", "kind": "IPAddress"},
+                {"name": "port", "kind": "Port"},
+                {"name": "connection_limit", "value": "0"},
+                {"name": "ratio", "value": "1"}
+            ]
+          },
+          "iappOptions": {
+            "description": "L7 route iApp"
+          },
+          "iappVariables": {
+            "var__policy_path": "/demo/demo1-routing-policy",
+            "var__asm_policy_path": "/Common/WAF_policy",
+            "var__dc_host": "host2.bd.f5.com",
+            "var__gslb_host": "host2.bd.f5.com",
+            "var__uri": "/",
+            "monitor__http_or_https": "http",
+            "monitor__interval": "5",
+            "monitor__timeout": "16",
+            "monitor__request": "GET / HTTP/1.0\\r\\nHost: host2.bd.f5.com\\r\\nUser-Agent: BIG-IP\\r\\nAccept: */*\\r\\n\\r\\n",
+            "monitor__response": "HTTP/1.[01] 200",
+            "pool__slow_ramp_setvalue": "30",
+            "pool__min_active_members": "1",
+            "pool__lb_method": "least-sessions",
+            "pool__tcp_queue_enabled_or_disabled": "disabled",
+            "pool__tcp_queue_length": "50",
+            "pool__tcp_queue_timeout": "500"
+          }
+        }
+      }
+    }
+

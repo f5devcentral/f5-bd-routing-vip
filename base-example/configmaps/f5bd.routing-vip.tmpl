@@ -1,0 +1,196 @@
+cli admin-partitions {
+    update-partition Common
+}
+
+sys application template f5bd.routing-vip {
+
+    actions {
+        definition {
+
+            implementation {
+
+                puts "################################################################################################################"
+		puts "Starting iApp $tmsh::app_name.app generated with tmsh2iapp version 20180717.1"
+
+                set partition "/[lindex [split [tmsh::pwd] /] 1]"
+                set partition_name "[lindex [split [tmsh::pwd] /] 1]"
+
+                if { $partition == "/" } { 
+                   puts "Warning: behaviour not well defined when @partition is \"/\"" 
+                   set defaultrd 0
+                } else {
+                   set obj [tmsh::get_config auth partition $partition_name default-route-domain]
+                   set defaultrd [tmsh::get_field_value [lindex $obj 0] default-route-domain]
+                }
+  
+                puts "The iApp of type nofolder-disable-strict-updates is being instantiated in @partition $partition, @defaultrd is $defaultrd"
+
+
+                tmsh::cd ".."
+
+
+
+                puts "Dumping values passed to iApp variables"
+                puts ">>> regular variables"
+                if {[info exists {::var__custom_clientssl_profile}]} { puts "> __custom_clientssl_profile__ >${::var__custom_clientssl_profile}<" } else { puts "> __custom_clientssl_profile__ is undefined" }
+
+                if {[info exists {::var__prefix}]} { puts "> __prefix__ >${::var__prefix}<" } else { puts "> __prefix__ is undefined" }
+
+                if {[info exists {::var__vs_address}]} { puts "> __vs_address__ >${::var__vs_address}<" } else { puts "> __vs_address__ is undefined" }
+
+                puts ">>> pool member variables"
+                puts ">>> data record variables"
+                puts ">>> firewall address list variables"
+                puts ">>> firewall port list variables"
+                puts ">>> url match category list variables"
+                puts ">>> url nomatch category list variables"
+                puts ">>> iworkflow variables"
+                puts "End of dumping values passed to iApp variables"
+
+                set cfg { 
+
+ltm persistence cookie __prefix__-custom-cookie-persistence {
+    cookie-name PERSISTENCE
+    defaults-from cookie
+    method insert
+}
+
+ltm profile one-connect __prefix__-custom-oneconnect {
+    defaults-from oneconnect
+    idle-timeout-override 60
+    limit-type idle
+    source-mask 255.255.255.255
+}
+
+ }
+
+
+                set cfg [string map "@service_folder $tmsh::app_name.app @partition $partition @defaultrd $defaultrd __custom_clientssl_profile__ {${::var__custom_clientssl_profile}} __prefix__ {${::var__prefix}} __vs_address__ {${::var__vs_address}} __app_service__ $tmsh::app_name.app/$tmsh::app_name " $cfg]
+
+                set fileId [open /var/tmp/f5bd.routing-vip.cfg "w"]
+                puts -nonewline $fileId $cfg
+                close $fileId
+
+                tmsh::load sys config merge file /var/tmp/f5bd.routing-vip.cfg
+
+                set policy [string map "@service_folder $tmsh::app_name.app @partition $partition @defaultrd $defaultrd __custom_clientssl_profile__ {${::var__custom_clientssl_profile}} __prefix__ {${::var__prefix}} __vs_address__ {${::var__vs_address}} __app_service__ $tmsh::app_name.app/$tmsh::app_name " {ltm policy __prefix__-routing-policy legacy  controls add { forwarding asm } requires add { http } rules add { default_rule { actions add { 0 { log write facility local0 message "No pool selected. There was no policy rule that selected a pool. Check the deployed ConfigMaps in your Kubernetes or Openshit environment and check if these are instantiated in the BIG-IP." priority info } 1 { asm disable } } ordinal 10000 } } strategy best-match}]
+                puts "$policy"
+                tmsh::create $policy
+
+
+                set cfg { 
+
+ltm virtual-address __vs_address__ {
+    address __vs_address__
+    mask 255.255.255.255
+}
+
+ltm virtual __prefix__-routing-vip-redirect {
+    destination __vs_address__:http
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        http { }
+        tcp-lan-optimized {
+            context serverside
+        }
+        tcp-wan-optimized {
+            context clientside
+        }
+    }
+    rules {
+        _sys_https_redirect
+    }
+    source 0.0.0.0/0
+    vlans none
+    vlans-disabled
+}
+
+ltm virtual __prefix__-routing-vip {
+    destination __vs_address__:https
+    ip-protocol tcp
+    mask 255.255.255.255
+    policies {
+        __prefix__-routing-policy { }
+    }
+    persist {
+        __prefix__-custom-cookie-persistence {
+            default yes
+        }
+    }
+    profiles {
+        websecurity { }
+        __custom_clientssl_profile__ {
+            context clientside
+        }
+        http { }
+        __prefix__-custom-oneconnect { }
+        tcp-lan-optimized {
+            context serverside
+        }
+        tcp-wan-optimized {
+            context clientside
+        }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+    vlans none
+    vlans-disabled
+} }
+
+
+                set cfg [string map "@service_folder $tmsh::app_name.app @partition $partition @defaultrd $defaultrd __custom_clientssl_profile__ {${::var__custom_clientssl_profile}} __prefix__ {${::var__prefix}} __vs_address__ {${::var__vs_address}} __app_service__ $tmsh::app_name.app/$tmsh::app_name " $cfg]
+
+                set fileId [open /var/tmp/f5bd.routing-vip.cfg "w"]
+                puts -nonewline $fileId $cfg
+                close $fileId
+
+                tmsh::load sys config merge file /var/tmp/f5bd.routing-vip.cfg
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+set cmd "tmsh::modify sys application service $tmsh::app_name.app/$tmsh::app_name strict-updates disabled"
+                   puts "$cmd"
+                   eval $cmd
+    
+                puts "Finished iApp $tmsh::app_name.app generated with tmsh2iapp version 20180717.1"
+            }
+    
+            presentation {
+
+                include "/Common/f5.apl_common"
+                section var {
+                        string custom_clientssl_profile display "xxlarge"
+                        string prefix display "xxlarge"
+                        string vs_address display "xxlarge"
+                }
+
+                text {
+
+                        var "General variables"
+                        var.custom_clientssl_profile "Full path to the client SSL profile"
+                        var.prefix "Prefix name used for all objects created"
+                        var.vs_address "VIP address"
+                }
+            } 
+            role-acl { admin manager resource-admin }
+        }
+    }
+    description "iApp f5bd.routing-vip generated with tmsh2iapp 20180717.1"
+
+}

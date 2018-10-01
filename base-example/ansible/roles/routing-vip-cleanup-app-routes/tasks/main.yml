@@ -1,0 +1,51 @@
+---
+
+- name: Delete the routes from the routing-vip in the BIG-IP (outer loop)
+  include_tasks: routes.yml
+    namespace={{ item.key }}
+    routes={{ item.value }}
+  with_dict: "{{ route_tmpl_files }}"
+
+- name: Delete the routing-vip in the BIG-IP
+  delegate_to: localhost
+  shell: oc delete -f {{ role_path }}/../../routing-vip/{{ item }}.routing-vip.yaml -n {{ item }}
+  args:
+    warn: no
+  register: result
+  failed_when:
+    - result is not success
+    - "'not found' not in result.stderr"
+  with_items: "{{ namespaces }}"
+
+- name: Delete from the BIG-IP library the iApp f5bd.route.tmpl
+  delegate_to: localhost
+  bigip_iapp_template:
+    content: "{{ lookup('template', '../../routing-vip/f5bd.route.tmpl') }}"
+#    force: true
+    validate_certs: "no"
+    server: "{{ bigip }}"
+    user: "{{ bigip_user }}"
+    password: "{{ bigip_adminpass }}"
+    state: "absent"
+  register: result
+  failed_when:
+    - not result|success
+    - "'referenced by one or more applications' not in result.msg"
+
+
+- name: Delete from the BIG-IP library the iApp f5bd.routing-vip.tmpl 
+  delegate_to: localhost
+  bigip_iapp_template:
+    content: "{{ lookup('template', '../../routing-vip/f5bd.routing-vip.tmpl') }}"
+#    force: true
+    validate_certs: "no"
+    server: "{{ bigip }}"
+    user: "{{ bigip_user }}"
+    password: "{{ bigip_adminpass }}"
+    state: "absent"
+  register: result
+  failed_when:
+    - not result|success
+    - "'referenced by one or more applications' not in result.msg"
+
+

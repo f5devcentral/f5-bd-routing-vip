@@ -1,0 +1,106 @@
+@option(iapp-type): nofolder-disable-strict-updates
+
+@label(__vs_address__): VIP address
+@label(__prefix__): Prefix name used for all objects created
+@label(__custom_clientssl_profile__): Full path to the client SSL profile
+
+ltm persistence cookie __prefix__-custom-cookie-persistence {
+    cookie-name PERSISTENCE
+    defaults-from cookie
+    method insert
+}
+
+ltm profile one-connect __prefix__-custom-oneconnect {
+    defaults-from oneconnect
+    idle-timeout-override 60
+    limit-type idle
+    source-mask 255.255.255.255
+}
+
+ltm policy __prefix__-routing-policy {
+    controls { forwarding asm }
+    requires { http }
+    rules {
+        default_rule {
+            actions {
+                0 {
+                    log
+                    write
+                    facility local0
+                    message "No pool selected. There was no policy rule that selected a pool. Check the deployed ConfigMaps in your Kubernetes or Openshit environment and check if these are instantiated in the BIG-IP."
+                    priority info
+                }
+                1 {
+                    asm
+                    disable
+                }
+            }
+            ordinal 10000
+        }
+    }
+    strategy best-match
+}
+
+ltm virtual-address __vs_address__ {
+    address __vs_address__
+    mask 255.255.255.255
+}
+
+ltm virtual __prefix__-routing-vip-redirect {
+    destination __vs_address__:http
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        http { }
+        tcp-lan-optimized {
+            context serverside
+        }
+        tcp-wan-optimized {
+            context clientside
+        }
+    }
+    rules {
+        _sys_https_redirect
+    }
+    source 0.0.0.0/0
+    vlans none
+    vlans-disabled
+}
+
+ltm virtual __prefix__-routing-vip {
+    destination __vs_address__:https
+    ip-protocol tcp
+    mask 255.255.255.255
+    policies {
+        __prefix__-routing-policy { }
+    }
+    persist {
+        __prefix__-custom-cookie-persistence {
+            default yes
+        }
+    }
+    profiles {
+        websecurity { }
+        __custom_clientssl_profile__ {
+            context clientside
+        }
+        http { }
+        __prefix__-custom-oneconnect { }
+        tcp-lan-optimized {
+            context serverside
+        }
+        tcp-wan-optimized {
+            context clientside
+        }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+    vlans none
+    vlans-disabled
+}
+
+

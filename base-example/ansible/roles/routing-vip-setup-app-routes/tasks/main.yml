@@ -1,0 +1,46 @@
+---
+
+### Actions in BIG-IP before the CC Configs can be deployed
+
+- name: Add to the BIG-IP library the iApp f5bd.routing-vip.tmpl 
+  delegate_to: localhost
+  bigip_iapp_template:
+    content: "{{ lookup('template', '../../routing-vip/f5bd.routing-vip.tmpl') }}"
+#    force: false
+    validate_certs: "no"
+    server: "{{ bigip }}"
+    user: "{{ bigip_user }}"
+    password: "{{ bigip_adminpass }}"
+    state: "present"
+
+- name: Add to the BIG-IP library the iApp f5bd.route.tmpl
+  delegate_to: localhost
+  bigip_iapp_template:
+    content: "{{ lookup('template', '../../routing-vip/f5bd.route.tmpl') }}"
+#    force: false
+    validate_certs: "no"
+    server: "{{ bigip }}"
+    user: "{{ bigip_user }}"
+    password: "{{ bigip_adminpass }}"
+    state: "present"
+
+### Push configurations to BIG-IP Controller / CC - Container Connector
+
+- name: For each namespace, configure the routing-vip in the BIG-IP
+  shell: oc apply -f {{ role_path }}/../../routing-vip/{{ item }}.routing-vip.yaml -n {{ item }}
+  args:
+    warn: no
+  delegate_to: localhost
+  register: result
+  failed_when:
+    - result is not success
+    - "'AlreadyExists' not in result.stderr"
+    - "'created' not in result.msg"
+  with_items: "{{ namespaces }}"
+
+- name: For each namespace, add the routes to the routing-vip in the BIG-IP (outer loop)
+  include_tasks: routes.yml
+    namespace={{ item.key }}
+    routes={{ item.value }}
+  with_dict: "{{ route_tmpl_files }}"
+

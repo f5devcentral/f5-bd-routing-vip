@@ -1,0 +1,237 @@
+sys application template f5bd.route {
+    actions {
+        definition {
+            html-help {
+            }
+            implementation {
+
+		### u.alonsocamaro@f5.com 01/2018
+                ###
+                ###  This iApp attaches a L7 route to an existing LTM policy by means of adding a rule
+                ### 
+                ###
+                ### u.alonsocamaro@f5.com 08/2018
+                ###
+                ### Added WAF ASM policy support
+                ### Removed __routestatus support used for the MCD demo
+                ### 
+
+                puts "\nStarting iApp $tmsh::app_name.app"
+		iapp::template start
+
+                ### Parameters check and iApp-wide variables. iApp's APL required and default keywords only apply when using the GUI
+
+                if {${var__policy_path} == ""} {
+                    error "Policy path parameter is empty. Aborting..."
+                }
+
+		if {![info exists {var__asm_policy_path}]} {
+		    set {var__asm_policy_path} ""
+		}
+
+                if {${var__asm_policy_path} == ""} {
+                    puts "Notice: ASM policy path parameter is empty."
+                }
+
+                if {${var__dc_host} == ""} {
+                    error "DC Host parameter is empty. Aborting..."
+                }
+
+                if {${var__gslb_host} == ""} {
+                    error "GSLB Host parameter is empty. Aborting..."
+                }
+
+                if {${var__uri} == ""} {
+                    error "Uri parameter is empty. Aborting..."
+                }
+
+                if {![iapp::is monitor__http_or_https http https]} {
+                    error "Monitor type must be either http or https. Aborting..."
+                }
+
+                if {${monitor__interval} == ""} {
+                    error "Monitor interval parameter is empty. Aborting..."
+                }
+
+                if {${monitor__timeout} == ""} {
+                    error "Monitor timeout parameter is empty. Aborting..."
+                }
+
+                if {${monitor__request} == ""} {
+                    error "Monitor request parameter is empty. Aborting..."
+                }
+
+                if {${pool__slow_ramp_setvalue} == ""} {
+                    error "Pool's slow ramp parameter is empty. Aborting..."
+                }
+
+                if {${pool__min_active_members} == ""} {
+                    error "Pool's min active members parameter is empty. Aborting..."
+                }
+
+                if {${pool__lb_method} == ""} {
+                    set pool__lb_method "round-robin"
+                    puts "Assigning default load balancing method $pool__lb_method"
+                }
+
+                if {${pool__tcp_queue_enabled_or_disabled} == ""} {
+                    set pool__tcp_queue_enabled_or_disabled "disabled"
+                    puts "Enabling TCP queuing by default"
+                }
+
+                if {${pool__tcp_queue_length} == ""} {
+                    set pool__tcp_queue_length 1
+                    puts "Setting TCP queue length to $pool__tcp_queue_length"
+                }
+
+                if {${pool__tcp_queue_timeout} == ""} {
+                    set pool__tcp_queue_timeout 500
+                    puts "Setting TCP queue timeout to $pool__tcp_queue_timeout"
+                }
+
+		set rulename ${var__dc_host}${var__uri}
+		set rulename [string map { / _ : _ } $rulename]
+
+                ### The policy we are in will be modified by another iApp so we need to disable strict-updates
+     
+                tmsh::modify sys application service $tmsh::app_name strict-updates disabled
+
+		### @2018/01: Workaround for the external monitor which requires the pool for the status VIP not to be in a folder within a partition
+                ### @2018/08: This is no longer used because we are not using a status VIP, only left to do not change things
+
+		tmsh::cd ".."
+
+		### Create monitor
+
+		iapp::conf create ltm monitor $monitor__http_or_https \
+		    ${rulename}_${monitor__http_or_https}_monitor \
+		    defaults-from $monitor__http_or_https \
+		    interval $monitor__interval \
+		    timeout $monitor__timeout \
+		    send '$::monitor__request' \
+		    recv '$::monitor__response'		
+
+		### Create pool
+
+		iapp::conf create ltm pool ${rulename}_pool \
+		    slow-ramp-time $::pool__slow_ramp_setvalue \
+		    min-active-members $::pool__min_active_members \
+		    monitor ${rulename}_${monitor__http_or_https}_monitor \
+		    load-balancing-mode $::pool__lb_method \
+		    queue-on-connection-limit $::pool__tcp_queue_enabled_or_disabled \
+		    queue-depth-limit $::pool__tcp_queue_length \
+		    queue-time-limit  $::pool__tcp_queue_timeout \
+		    [iapp::pool_members $::pool__members]
+
+		### LTM Policy
+
+		puts "About to add rule $rulename to policy $var__policy_path"
+
+		# We allow a maximum URI path of 1023 characters
+                # 
+                # Note: using this arithmetic we really would not need a best-match strategy just a first match would suffice.
+                #       Not sure if it would be faster tough. We play safe here and we use best-match in f5bd.routing-vip iApp
+		set ordinal [expr {1024-[string length ${var__uri}]}]
+
+		# For some reason I cannot specify the ordinal in the create statement since I introduced the controls and require statements. The error message is:
+		# script did not successfully complete: ("ordinal" identifier must be a positive decimal number
+
+		if { [string length ${var__asm_policy_path} ] == 0} {
+			set asm_policy "0 { asm disable }"
+		} else {
+                        set asm_policy "0 { asm enable policy ${var__asm_policy_path} }"
+		}
+
+               	set cmd "tmsh::modify ltm policy ${var__policy_path} legacy controls replace-all-with { { forwarding asm } } requires replace-all-with { { http } } rules add { { ${rulename} { actions replace-all-with { $asm_policy 1 { forward select pool ${rulename}_pool } } conditions replace-all-with { 0 { http-host host values { ${var__dc_host} ${var__gslb_host} } } 1 { http-uri path starts-with values { ${var__uri} } } } } } }"
+
+		puts "\nAdding the policy with the command:\n\n"
+                puts "$cmd\n"
+		eval $cmd
+
+		set cmd "tmsh::modify ltm policy ${var__policy_path} legacy rules modify { { ${rulename} { ordinal ${ordinal} } } }"
+		puts "\nAssigning to the the rule its ordinal number with the command:\n\n"
+                puts "$cmd\n"
+                eval $cmd
+
+		###
+
+		iapp::template stop
+                puts "Finished iApp $tmsh::app_name.app"
+            }
+            macro {
+            }
+            presentation {
+                include "/Common/f5.apl_common"
+                section var {
+		    string policy_path display "xxlarge" required
+                    string asm_policy_path display "xxlarge"
+		    string dc_host display "xxlarge" required
+                    string gslb_host display "xxlarge" required
+		    string uri display "xxlarge" required
+                }
+
+		section monitor {
+		    string http_or_https display "xxlarge" required
+		    string interval display "xlarge" required
+		    string timeout display "xlarge" required
+		    string request display "xxxlarge" required
+		    string response display "xxxlarge" 
+		}
+
+		section pool {
+
+		    string slow_ramp_setvalue display "medium" default "30" required validator "NonNegativeNumber"
+		    string min_active_members display "medium" default "0" required validator "NonNegativeNumber"
+		    string lb_method display "medium" default "round-robin" 
+		    string tcp_queue_enabled_or_disabled display "medium" default "disabled"
+		    string tcp_queue_length display "medium" default "1" required validator "NonNegativeNumber"
+		    string tcp_queue_timeout display "medium" default "500" required validator "NonNegativeNumber"
+		    table members {
+		    	editchoice addr display "large" tcl {
+		    	    package require iapp 1.3.0
+		    	    set ::choices [iapp::get_items ltm node]
+		    	    return [iapp::safe_display ::choices]
+		    	}
+			string port display "small" required validator "PortNumber"
+		    	string connection_limit display "small" required default "0" validator "NonNegativeNumber"
+		    	string ratio display "small" required default "1" validator "NonNegativeNumber"
+		    }
+		}
+
+                text {
+		    var "Request routing parameters"
+		    var.policy_path "Full path to LTM policy"
+                    var.asm_policy_path "Full path to ASM WAF policy (can be empty)"
+		    var.dc_host "DC-specific Host header value is equal to"
+                    var.gslb_host "GSLB Host header value is equal to"
+		    var.uri "URI starts with"
+
+		    monitor "Health monitor parameters"
+		    monitor.http_or_https "Monitor type (set http or https)"
+		    monitor.interval "Probe interval"
+		    monitor.timeout "Probe timeout"
+		    monitor.request "Probe request"
+		    monitor.response "Probe expected response"
+
+		    pool "Pool member parameters"
+		    pool.slow_ramp_setvalue "Slow Ramp"
+		    pool.min_active_members "Min active members"
+		    pool.lb_method "Load balancing method"
+		    pool.tcp_queue_enabled_or_disabled "TCP queing on limit (set enabled or disabled)"
+		    pool.tcp_queue_length "Max number of requests to queue (value of 0 when enabled is discouraged = unlimited)"
+		    pool.tcp_queue_timeout "Max time in milliseconds the request might stay queued"
+		    pool.members "Which web servers should be included in this pool?"
+		    pool.members.addr "Node/IP address"
+		    pool.members.port "Port"
+		    pool.members.connection_limit "Connection limit"
+		    pool.members.ratio "Ratio"
+
+
+                }
+            }
+            role-acl { admin manager resource-admin }
+            run-as none
+        }
+    }
+    description none
+}
