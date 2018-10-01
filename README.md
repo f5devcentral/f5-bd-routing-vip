@@ -44,6 +44,8 @@ Please check the wiki page for documentation on how to use this routing-vip.
 
 Also, I would love to hear from you. Please fill free to fill issues reports or feature request through this link. If you prefer you can also contact me directly sending me an e-mail to the following address:
 
+![Contact](https://raw.githubusercontent.com/wiki/f5devcentral/f5-bd-routing-vip/images/contact.png)
+
 # Future work
 
 If there is demand from F5 users I could enhance the routing-vip to allow A/B deployments in the same way Openshift L7 routes implement this feature. If you are intersted in this feature please fill an issue in this link.
