@@ -1,8 +1,8 @@
-Goal
+# Goal
 
-The goal of this project was to have a L7 routing VIP handling L7 routes where each L7 route should be able to have its own advanced services configuration. This project demonstrates the extended flexibility of BIG-IP when regular mechanisms don't meet requirements.
+The goal of this project is to have a routing VIP handling L7 routes where each L7 route should be able to have its own independent advanced services configuration. This project demonstrates the extended flexibility of BIG-IP when regular mechanisms don't meet requirements.
 
-Motivation
+# Motivation
 
 BIG-IP Controller (aka Container Connector) for Kubernetes and Openshift provides great features, these include:
 
@@ -15,14 +15,14 @@ BIG-IP Controller (aka Container Connector) for Kubernetes and Openshift provide
 
 Please see the user documentation / http://clouddocs.f5.com/containers/latest/kubernetes/index.html for more information 
 
-The routing-vip offered in this project is complementary, allowing the following features:
+The routing-vip offered in this project uses the iApp support of BIG-IP Controller to provide following additional features:
 
-1- L7 routes in Kubernetes with advanced BIG-IP services such as iRules, ASM (ie: WAF), AFM (ie: firewall rules, DDoS), IP-intelligence, High Speed Logging, etc... deployed with a ConfigMap
-2- Allow per L7 route use of advanced BIG-IP services mentioned above.  
+1. L7 routes in Kubernetes with advanced BIG-IP services such as iRules, ASM (ie: WAF), AFM (ie: firewall rules, DDoS), IP-intelligence, High Speed Logging, etc... deployed with a ConfigMap
+2. Allow per L7 route use of advanced BIG-IP services mentioned above.  
 
 Although feature 1) is possible with regular L7 routes in Openshift these are not possible in Kubernetes Ingress routes. Also, please note that when deploying iApps with F5 ConfigMaps by default it is not provided a mechanism to allow sharing a VIP across several L7 routes.
 
-Overall architecture
+# Overall architecture
 
 Typically we will have a HTTP VIP that will redirect to an HTTPS VIP which will host the L7 routes implemented with LTM policies. This configuration is just an example and could be adapted to any other requirements.
 
@@ -38,13 +38,13 @@ This implementation is exhibit in the next diagram.
 
 Please note that there is no limitation on how many intances of the routing-vip iApp are deployed.
 
-Using the routing-vip & feedback
+# Using the routing-vip & feedback
 
 Please check the wiki page for documentation on how to use this routing-vip.
 
 Also, I would love to hear from you. Please fill free to fill issues reports or feature request through this link. If you prefer you can also contact me directly sending me an e-mail to the following address:
 
-Future work
+# Future work
 
 If there is demand from F5 users I could enhance the routing-vip to allow A/B deployments in the same way Openshift L7 routes implement this feature. If you are intersted in this feature please fill an issue in this link.
 
