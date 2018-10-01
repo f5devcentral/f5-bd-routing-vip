@@ -40,7 +40,7 @@ Please note that there is no limitation on how many intances of the routing-vip 
 
 # Using the routing-vip & feedback
 
-Please check the wiki page for documentation on how to use this routing-vip.
+Please check the [wiki page for documentation on how to use this routing-vip](https://github.com/f5devcentral/f5-bd-routing-vip/wiki).
 
 Also, I would love to hear from you. Please fill free to fill issues reports or feature request through this link. If you prefer you can also contact me directly sending me an e-mail to the following address:
 
