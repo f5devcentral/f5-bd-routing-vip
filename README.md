@@ -26,7 +26,7 @@ Although feature 1) is possible with regular L7 routes in Openshift these are no
 
 Typically we will have a HTTP VIP that will redirect to an HTTPS VIP which will host the L7 routes implemented with LTM policies. This configuration is just an example and could be adapted to any other requirements.
 
-<figure>
+![Conceptual view](https://raw.githubusercontent.com/wiki/f5devcentral/f5-bd-routing-vip/images/diagram_conceptual_view.png)
 
 An iApp called routing-vip iApp (f5bd.routing-vip to be precise) will implement the HTTP & HTTPS VIPs and the LTM policies with a default LTM policy rule. We will have only one instance of this iApp per HTTP/HTTPS VIP set. This is deployed with a ConfigMap.
 
@@ -34,7 +34,7 @@ We will attach LTM policy rules to this LTM policy by using another iApp named f
 
 This implementation is exhibit in the next diagram.
 
-<figure>
+![Implementation view](https://raw.githubusercontent.com/wiki/f5devcentral/f5-bd-routing-vip/images/diagram_implementation_view.png)
 
 Please note that there is no limitation on how many intances of the routing-vip iApp are deployed.
 
